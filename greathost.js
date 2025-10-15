@@ -1,7 +1,7 @@
 const EMAIL = process.env.GREATHOST_EMAIL || 'xxxx@gmail.com';  // greathost邮箱必填
 const PASSWORD = process.env.GREATHOST_PASSWORD || 'xxxxxxxx';  // greathost密码必填
-const CHAT_ID = process.env.CHAT_ID || '';     // tg_chat_id 消息推送配置可选,须同时填写telegram bot token
-const BOT_TOKEN = process.env.BOT_TOKEN || ''; // telegram bot token
+const CHAT_ID = process.env.CHAT_ID || '558914831';     // tg_chat_id 消息推送配置可选,须同时填写telegram bot token
+const BOT_TOKEN = process.env.BOT_TOKEN || '5824972634:AAGJG-FBAgPljwpnlnD8Lk5Pm2r1QbSk1AI'; // telegram bot token
 
 const { chromium } = require("playwright");
 const https = require('https');
