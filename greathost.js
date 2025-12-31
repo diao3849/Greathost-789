@@ -43,38 +43,38 @@ async function sendTelegramMessage(message) {
     await page.waitForTimeout(2000);
 
     
-    // === 5. 提前提取 ID ===
-    // 假设当前 URL 是 https://greathost.es/manage/4d4e3deb-c95d-4322-a8eb-59289bc5f8b3
-    let serverId = page.url().split('/').pop();
+    // === 2. 状态检查与自动开机 (仅作为辅助动作) ===
+    console.log("📊 正在检查服务器实时状态...");
     
-    // 容错处理：如果 URL 结尾带参数（如 ?tab=billing），排除干扰
-    if (serverId && serverId.includes('?')) {
-        serverId = serverId.split('?')[0];
-    }  
-    console.log(`🆔 解析到 Server ID: ${serverId}`);
-
-    // === 2. 状态检查与自动开机 (利用提取到的 ID) ===
+    // 获取当前状态文字（对应 F12 中的 .status-text）
     const statusText = await page.locator('.status-text, .server-status').first().textContent().catch(() => 'unknown');
     const statusLower = statusText.trim().toLowerCase();
-
-    if (statusLower.includes('offline') || statusLower.includes('stopped')) {
-        console.log(`⚡ 服务器离线，使用解析到的 ID [${serverId}] 启动...`);
+    
+    // serverStarted 定义在 try 块顶部：let serverStarted = false;
+    if (statusLower.includes('offline') || statusLower.includes('stopped') || statusLower.includes('离线')) {
+        console.log(`⚡ 检测到离线 [${statusText}]，尝试点击三角形启动按钮...`);
         
-        await page.evaluate(async (id) => {
-            const fakeEvent = {
-                preventDefault: () => {},
-                stopPropagation: () => {},
-                currentTarget: document.querySelector('.btn-start') || document.createElement('button')
-            };
-            if (typeof handleQuickPower === 'function') {
-                // 使用动态解析出的 id
-                await handleQuickPower(id, 'start', fakeEvent);
+        // 使用你提供的 SVG 结构精准定位按钮
+        const startBtn = page.locator('button.btn-start[title="Start Server"]').first();
+        
+        try {
+            // 检查按钮是否被禁用，如果没禁用就点
+            const isDisabled = await startBtn.getAttribute('disabled');
+            if (await startBtn.isVisible() && isDisabled === null) {
+                await startBtn.click();
+                serverStarted = true; 
+                console.log("✅ 启动指令已发出");
+                // 仅在点击成功后象征性等待 1 秒，不要浪费 Actions 时间
+                await page.waitForTimeout(1000);
             }
-        }, serverId);
-        
-        console.log("✅ 启动指令发送成功");
+        } catch (e) {
+            console.log("⚠️ 启动按钮点击失败，可能已被禁用或不存在，忽略并继续...");
+        }
+    } else {
+        console.log(`ℹ️ 当前状态 [${statusText}]，无需点击启动。`);
     }
 
+    // === 不管启动结果，强制进入账单页 ===
     // === 3. 点击 Billing 图标进入账单页 ===
     console.log("🔍 点击 Billing 图标...");
     const billingBtn = page.locator('.btn-billing-compact').first();
@@ -100,8 +100,8 @@ async function sendTelegramMessage(message) {
 
     
     // === 5. 提前提取 ID，防止页面跳转后丢失上下文 ===
-    //const serverId = page.url().split('/').pop() || 'unknown';
-    //console.log(`🆔 解析到 Server ID: ${serverId}`);    
+    const serverId = page.url().split('/').pop() || 'unknown';
+    console.log(`🆔 解析到 Server ID: ${serverId}`);    
 
     // === 6. 等待异步数据加载 (直到 accumulated-time 有数字) ===    
     const timeSelector = '#accumulated-time';
