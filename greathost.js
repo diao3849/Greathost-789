@@ -1,7 +1,7 @@
 const EMAIL = process.env.GREATHOST_EMAIL || 'zhangbin0301@qq.com';
 const PASSWORD = process.env.GREATHOST_PASSWORD || '987277984';
-const CHAT_ID = process.env.CHAT_ID || '558914831';
-const BOT_TOKEN = process.env.BOT_TOKEN || '5824972634:AAGJG-FBAgPljwpnlnD8Lk5Pm2r1QbSk1AI';
+const CHAT_ID = process.env.CHAT_ID || '';
+const BOT_TOKEN = process.env.BOT_TOKEN || '';
 
 const { chromium } = require("playwright");
 const https = require('https');
