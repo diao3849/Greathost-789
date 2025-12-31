@@ -1,5 +1,5 @@
-const EMAIL = process.env.GREATHOST_EMAIL || 'zhangbin0301@qq.com';
-const PASSWORD = process.env.GREATHOST_PASSWORD || '987277984';
+const EMAIL = process.env.GREATHOST_EMAIL || '';
+const PASSWORD = process.env.GREATHOST_PASSWORD || '';
 const CHAT_ID = process.env.CHAT_ID || '';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 
