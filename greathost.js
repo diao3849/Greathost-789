@@ -190,7 +190,7 @@ async function sendTelegramMessage(message) {
                         `📅 <b>检查时间:</b> ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}\n` +      
                         `💡 <b>提示:</b> 累计不能超过 5 天，无需续期。`;
         await sendTelegramMessage(message);
-        console.log("⚠️ 无需续期 ⚠️  ");
+        console.log(" ⚠️ 无需续期 ⚠️ ");
     } else {
         // 场景 C：真正的失败（比如网络问题或按钮点不动）
         const message = `⚠️ <b>GreatHost 续期未生效</b>\n\n` +
