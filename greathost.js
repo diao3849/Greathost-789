@@ -45,23 +45,21 @@ async function sendTelegramMessage(message) {
     
     // === 2. 状态检查与自动开机 (仅作为辅助动作) ===
     console.log("📊 正在检查服务器实时状态...");
-
-    // 放在 try 块的这个位置是安全的，只要不放在 if 里面即可
+    
     let serverStarted = false;
-
-    // 1. 获取当前状态文字
+            // 2.1 获取当前服务器状态文字
     const statusText = await page.locator('.status-text, .server-status').first().textContent().catch(() => 'unknown');
     const statusLower = statusText.trim().toLowerCase();
 
-    // 2. 执行判定与点击动作
+            // 2.2 执行判定与点击动作
     if (statusLower.includes('offline') || statusLower.includes('stopped') || statusLower.includes('离线')) {
         console.log(`⚡ 检测到离线 [${statusText}]，尝试触发启动...`);
 
         try {
-            // 使用 SVG 结构精准定位三角形启动按钮 (根据源码 button.btn-start title="Start Server")
+                  // 使用 SVG 结构精准定位三角形启动按钮 (根据源码 button.btn-start title="Start Server")
             const startBtn = page.locator('button.btn-start[title="Start Server"]').first();
             
-            // 检查按钮是否可见，且没有 disabled 属性
+                  // 检查按钮是否可见，且没有 disabled 属性
             if (await startBtn.isVisible() && await startBtn.getAttribute('disabled') === null) {
                 await startBtn.click();
                 
@@ -72,7 +70,7 @@ async function sendTelegramMessage(message) {
                 // 仅等待 1 秒让请求发出去，立刻继续，不浪费时间
                 await page.waitForTimeout(1000); 
             } else {
-                console.log("⚠️ 启动按钮不可用(可能正在冷却或未找到)，跳过启动。");
+                console.log("⚠️ 启动按钮可能正在冷却或未找到，跳过启动。");
             }
         } catch (e) {
             // 这一步报错不应该影响主流程，所以 catch 里只打印日志，不抛出错误
@@ -80,9 +78,8 @@ async function sendTelegramMessage(message) {
         }
     } else {
         console.log(`ℹ️ 服务器状态 [${statusText}] 正常，无需启动。`);
-    }
-        
-    // === 不管启动结果，强制进入账单页 ===
+    }        
+    
     // === 3. 点击 Billing 图标进入账单页 ===
     console.log("🔍 点击 Billing 图标...");
     const billingBtn = page.locator('.btn-billing-compact').first();
@@ -101,11 +98,9 @@ async function sendTelegramMessage(message) {
     await Promise.all([
       page.getByRole('link', { name: 'View Details' }).first().click(),
       page.waitForNavigation({ waitUntil: "networkidle" })
-    ]);
-    
+    ]);    
     console.log("⏳ 已进入详情页，等待3秒...");
     await page.waitForTimeout(3000);
-
     
     // === 5. 提前提取 ID，防止页面跳转后丢失上下文 ===
     const serverId = page.url().split('/').pop() || 'unknown';
@@ -130,10 +125,10 @@ async function sendTelegramMessage(message) {
     console.log(`🆔 ID: ${serverId} | ⏰ 目前: ${beforeHours}h | 🔘 状态: ${btnContent.includes('Wait') ? '冷却中' : '可续期'}`);
        
     if (btnContent.includes('Wait')) {
-    // 9.1. 提取数字：从 "Wait 23 min" 中提取出 "23"
+          // 9.1. 提取数字：从 "Wait 23 min" 中提取出 "23"
     const waitTime = btnContent.match(/\d+/)?.[0] || "??"; 
     
-    // 9.2. 组装消息：通知用户还在冷却，并显示当前已累计的时间
+          // 9.2. 组装消息：通知用户还在冷却，并显示当前已累计的时间
     const message = `⏳ <b>GreatHost 还在冷却中</b>\n\n` +
                     `🆔 <b>服务器ID:</b> <code>${serverId}</code>\n` +
                     `⏰ <b>剩余时间:</b> ${waitTime} 分钟\n` +
@@ -145,35 +140,31 @@ async function sendTelegramMessage(message) {
     await browser.close();
     return; // 结束脚本，不执行后面的点击操作
 }
-     
+    
    // === 10. 执行续期 ===
     console.log("⚡ 正在执行续期点击...");
     await renewBtn.click();
 
     // === 11. 等待接口返回并处理（源代码中使用了 fetch，这里等待页面响应） ===
     // 等待 8 秒让后端处理，并留心观察页面是否出现了错误提示
-    await page.waitForTimeout(8000); 
-    
-    // 检查页面上是否弹出了这个错误文本（通常是红色提示框）
+    await page.waitForTimeout(8000);     
+            // 检查页面上是否弹出了这个错误文本（通常是红色提示框）
     const errorMsg = await page.locator('.toast-error, .alert-danger').textContent().catch(() => '');
     const isMaxedOut = errorMsg.includes('5 días') || beforeHours >= 120;
-
     await page.reload({ waitUntil: "networkidle" });
-
     
     // === 12. 再次等待数据刷新 ===
     await page.waitForFunction(sel => {
       const el = document.querySelector(sel);
       return el && /\d+/.test(el.textContent);
-    }, timeSelector);
-    
-    // === 12.1 获取续期后时间 ===
+    }, timeSelector);    
+            // 获取续期后时间
     const afterHoursText = await page.textContent(timeSelector);
     const afterHours = parseInt(afterHoursText.replace(/[^0-9]/g, '')) || 0;
 
     // === 13. 最终通知 (根据接口反馈优化) ===
     if (afterHours > beforeHours) {
-        // 场景 A：成功增加时间
+            // 场景 A：成功增加时间
         const message = `🎉 <b>GreatHost 续期成功</b>\n\n` +
                         `🆔 <b>ID:</b> <code>${serverId}</code>\n` +
                         `⏰ <b>时间:</b> ${beforeHours} ➔ ${afterHours}h\n` +
@@ -182,7 +173,7 @@ async function sendTelegramMessage(message) {
         await sendTelegramMessage(message);
         console.log(" ✅ 续期成功 ✅ ");
     } else if (isMaxedOut) {
-        // 场景 B：因为满 120 小时而被拒绝。
+            // 场景 B：因为满 120 小时而被拒绝。
         const message = `✅ <b>GreatHost 已达上限</b>\n\n` +
                         `🆔 <b>ID:</b> <code>${serverId}</code>\n` +
                         `⏰ <b>当前:</b> ${beforeHours}h (已满额)\n` +
@@ -192,7 +183,7 @@ async function sendTelegramMessage(message) {
         await sendTelegramMessage(message);
         console.log(" ⚠️ 无需续期 ⚠️ ");
     } else {
-        // 场景 C：真正的失败（比如网络问题或按钮点不动）
+            // 场景 C：真正的失败（比如网络问题或按钮点不动）
         const message = `⚠️ <b>GreatHost 续期未生效</b>\n\n` +
                         `🆔 <b>ID:</b> <code>${serverId}</code>\n` +
                         `⏰ <b>当前:</b> ${beforeHours}h\n` +
