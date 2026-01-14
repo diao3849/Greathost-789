@@ -2,8 +2,7 @@ const EMAIL = process.env.GREATHOST_EMAIL || '';
 const PASSWORD = process.env.GREATHOST_PASSWORD || '';
 const CHAT_ID = process.env.CHAT_ID || '';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-// === sock5代理配置固定IP用 (如果不需要代理，留空) ===
-const PROXY_URL = process.env.PROXY_URL || ""
+
 
 const { chromium } = require("playwright");
 const https = require('https');
@@ -28,12 +27,22 @@ async function sendTelegramMessage(message) {
   const LOGIN_URL = `${GREATHOST_URL}/login`;
   const HOME_URL = `${GREATHOST_URL}/dashboard`;
 
-  // --- 修改开始：支持代理启动 ---
-  const launchOptions = { headless: true };
-  if (PROXY_URL && PROXY_URL.trim()) {
-      launchOptions.proxy = { server: PROXY_URL };
-  }
-  const browser = await chromium.launch(launchOptions);
+// --- 修改开始：仅支持 SOCKS5 代理启动 ---
+  // === sock5代理配置固定IP用 (如果不需要代理，留空) ===
+const RAW_PROXY = (process.env.PROXY_URL || "").trim();
+const launchOptions = { 
+  headless: true,
+  args: ['--no-sandbox'] 
+};
+
+if (RAW_PROXY) {
+    // 强制补全 socks5:// 前缀（如果用户没填的话）
+    const serverUrl = RAW_PROXY.startsWith('socks') ? RAW_PROXY : `socks5://${RAW_PROXY}`;
+    launchOptions.proxy = { server: serverUrl };
+    console.log(`🌍 [SOCKS5] 代理已就绪: ${serverUrl.split('@').pop()}`);
+}
+
+const browser = await chromium.launch(launchOptions);
   
   // 增加 User-Agent 伪装，让它看起来像真实的 Windows Chrome
   const context = await browser.newContext({
