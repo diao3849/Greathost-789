@@ -1,4 +1,4 @@
-name: Auto-renew-greathost
+name: Greathost-AutoRenew-JS
 
 on:
   schedule:
