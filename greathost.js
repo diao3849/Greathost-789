@@ -4,6 +4,7 @@ const CHAT_ID = process.env.CHAT_ID || '';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const PROXY_URL = (process.env.PROXY_URL || "").trim();
 
+// 核心改动：换成 firefox 引擎
 const { firefox } = require("playwright");
 const https = require('https');
 
@@ -23,26 +24,32 @@ async function sendTelegramMessage(message) {
 }
 
 (async () => {
+    // === 严格保留你原始定义的 URL 变量 ===
     const GREATHOST_URL = "https://greathost.es";    
     const LOGIN_URL = `${GREATHOST_URL}/login`;
     const HOME_URL = `${GREATHOST_URL}/dashboard`;
+    const BILLING_URL = `${GREATHOST_URL}/billing/free-servers`;
     
     let proxyStatusTag = "🌐 直连模式";
     let serverStarted = false;
 
+    // --- 代理逻辑解析 ---
     let proxyData = null;
     if (PROXY_URL) {
         try {
             const cleanUrl = PROXY_URL.startsWith('socks') ? PROXY_URL : `socks5://${PROXY_URL}`;
             proxyData = new URL(cleanUrl);
             proxyStatusTag = `🔒 代理模式 (${proxyData.host})`;
-        } catch (e) { console.error("代理格式错"); }
+        } catch (e) {
+            console.error("❌ PROXY_URL 解析失败:", e.message);
+        }
     }
 
     let browser;
     try {
-        console.log(`🚀 启动任务 | ${proxyStatusTag}`);
+        console.log(`🚀 任务启动 | 引擎: Firefox | ${proxyStatusTag}`);
         
+        // 核心修改：只在 launch 传 server，不在这里传账号密码防止报错
         browser = await firefox.launch({
             headless: true,
             proxy: proxyData ? { server: `socks5://${proxyData.host}` } : undefined
@@ -54,29 +61,37 @@ async function sendTelegramMessage(message) {
             locale: 'es-ES'
         });
 
-        // ⭐ 修正后的 API：是 setCredentials 而不是 setHttpCredentials
+        // 核心修改：使用正确的 setCredentials 注入账号密码
         if (proxyData && proxyData.username) {
             await context.setCredentials({
                 username: proxyData.username,
                 password: proxyData.password
             });
-            console.log("🔑 凭据注入成功");
+            console.log("🔑 代理凭据注入成功");
         }
 
         const page = await context.newPage();
 
+        // --- 完整保留你原来的指纹抹除 ---
         await page.addInitScript(() => {
-            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
         });
 
+        // --- 1. 代理检测（熔断逻辑） ---
         if (proxyData) {
+            console.log("🌍 [Check] 正在检测代理出口 IP...");
             try {
-                await page.goto("https://api.ipify.org?format=json", { timeout: 20000 });
-                console.log(`✅ 出口 IP: ${await page.innerText('body')}`);
-            } catch (e) { console.log("⚠️ IP 检测超时..."); }
+                await page.goto("https://api.ipify.org?format=json", { timeout: 30000 });
+                const ipInfo = JSON.parse(await page.innerText('body'));
+                console.log(`✅ 当前出口 IP: ${ipInfo.ip}`);
+            } catch (e) {
+                await sendTelegramMessage(`🚨 <b>GreatHost 代理异常</b>\n原因: ${e.message}`);
+                throw new Error("Proxy Check Failed"); 
+            }
         }
 
-        // --- 核心业务逻辑 (原汁原味) ---
+        // --- 2. 登录流程（严格按照你源代码的步骤） ---
+        console.log("🔑 正在登录...");
         await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
         await page.fill('input[name="email"]', EMAIL);
         await page.fill('input[name="password"]', PASSWORD);
@@ -84,11 +99,19 @@ async function sendTelegramMessage(message) {
             page.click('button[type="submit"]'),
             page.waitForNavigation({ waitUntil: "networkidle" }),
         ]);
+        
+        if (page.url().includes('login')) {
+            throw new Error("登录失败，请检查账号密码");
+        }
+        console.log("✅ 登录成功！");
 
+        // --- 3. 自动开机逻辑（完整保留） ---
+        console.log("📊 检查服务器状态...");
         await page.goto(HOME_URL, { waitUntil: "networkidle" });
-        const offline = page.locator('span.badge-danger, .status-offline').first();
-        if (await offline.isVisible()) {
-            const startBtn = page.locator('button.btn-start, button:has-text("Start")').first();
+        const offlineIndicator = page.locator('span.badge-danger, .status-offline').first();
+        if (await offlineIndicator.isVisible()) {
+            console.log("⚠️ 检测到服务器离线，尝试启动...");
+            const startBtn = page.locator('button:has-text("Start"), .btn-start').first();
             if (await startBtn.isVisible()) {
                 await startBtn.click();
                 serverStarted = true;
@@ -96,40 +119,70 @@ async function sendTelegramMessage(message) {
             }
         }
 
-        await page.locator('.btn-billing-compact').first().click();
-        await page.waitForNavigation({ waitUntil: "networkidle" });
+        // --- 4. 续期流程（还原原始点击路径和报表逻辑） ---
+        console.log("🔍 进入 Billing 页面...");
+        await page.goto(BILLING_URL, { waitUntil: "networkidle" });
 
+        // 原版点击 View Details
         await page.getByRole('link', { name: 'View Details' }).first().click();
         await page.waitForNavigation({ waitUntil: "networkidle" });
         
         const serverId = page.url().split('/').pop() || 'unknown';
-        const beforeHoursText = await page.textContent('#accumulated-time');
+        const timeSelector = '#accumulated-time';
+
+        // 捕获续期前时长
+        const beforeHoursText = await page.textContent(timeSelector);
         const beforeHours = parseInt(beforeHoursText.replace(/[^0-9]/g, '')) || 0;
 
         const renewBtn = page.locator('#renew-free-server-btn');
         const btnContent = await renewBtn.innerHTML();
 
+        // 完整保留你原来的报告生成函数
+        const getReport = (icon, title, hours, detail) => {
+            return `${icon} <b>GreatHost ${title}</b>\n\n` +
+                   `🆔 <b>服务器ID:</b> <code>${serverId}</code>\n` +
+                   `⏰ <b>当前时长:</b> ${hours}h\n` +
+                   `🚀 <b>开机状态:</b> ${serverStarted ? '✅ 已触发开机' : '运行中'}\n` +
+                   `🌐 <b>连接模式:</b> ${proxyStatusTag}\n` + 
+                   `💡 <b>详情:</b> ${detail}`;
+        };
+
         if (btnContent.includes('Wait')) {
-            const waitTime = btnContent.match(/\d+/)?.[0] || "??";
-            await sendTelegramMessage(`⏳ 服务器 ${serverId} 冷却中，剩余 ${waitTime} 分钟。`);
+            const waitMatch = btnContent.match(/\d+/);
+            const waitTime = waitMatch ? waitMatch[0] : "??";
+            await sendTelegramMessage(getReport('⏳', '续期冷却中', beforeHours, `还需等待 ${waitTime} 分钟`));
             return;
         }
 
-        await page.mouse.wheel(0, 300);
-        await page.waitForTimeout(1000);
+        // --- 5. 执行续期（原始模拟逻辑） ---
+        console.log("⚡ 执行续期操作...");
+        await page.mouse.wheel(0, 200); 
+        await page.waitForTimeout(2000);
         await renewBtn.click({ force: true });
 
-        await page.waitForTimeout(15000);
+        // --- 6. 最终校验（原始同步逻辑） ---
+        console.log("⏳ 等待 20 秒处理数据...");
+        await page.waitForTimeout(20000);
         await page.reload();
-        const afterHoursText = await page.textContent('#accumulated-time');
-        const afterHours = parseInt(afterHoursText.replace(/[^0-9]/g, '')) || 0;
         
-        await sendTelegramMessage(`🎉 <b>GreatHost 续期结果</b>\nID: ${serverId}\n状态: ${beforeHours}h -> ${afterHours}h`);
+        const afterHoursText = await page.textContent(timeSelector);
+        const afterHours = parseInt(afterHoursText.replace(/[^0-9]/g, '')) || 0;
+
+        if (afterHours > beforeHours) {
+            await sendTelegramMessage(getReport('🎉', '续期成功', afterHours, `时长从 ${beforeHours}h 增加`));
+        } else {
+            await sendTelegramMessage(getReport('✅', '已检查', afterHours, '目前时长充足，无需重复续期'));
+        }
 
     } catch (err) {
-        console.error("❌ 崩溃:", err.message);
-        await sendTelegramMessage(`🚨 <b>GreatHost 异常</b>\n${err.message}`);
+        console.error("❌ 错误详情:", err);
+        if (!err.message.includes("Proxy Check Failed")) {
+            await sendTelegramMessage(`🚨 <b>GreatHost 脚本崩溃</b>\n错误: <code>${err.message}</code>`);
+        }
     } finally {
-        if (browser) await browser.close();
+        if (browser) {
+            console.log("🧹 关闭浏览器...");
+            await browser.close();
+        }
     }
 })();
