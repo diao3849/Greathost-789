@@ -144,68 +144,62 @@ def run_task():
         wait.until(EC.url_contains("/dashboard"))
         print("✅ 登录成功！")
 
-     # === 2. 状态检查与自动开机 (针对新版小圆点 UI 优化) ===
-        print("📊 正在检查服务器实时状态...")
-        try:
-            # 等待状态圆点加载出来
-            status_indicator = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'server-status-indicator')))
-            
-            # 方案 A：从 title 属性获取文字 (例如 "Running", "Stopped")
-            status_text = status_indicator.get_attribute('title') or 'unknown'
-            
-            # 方案 B：从 class 属性判断 (status-dot-running, status-dot-stopped)
-            status_class = status_indicator.get_attribute('class') or ''
-            
-            print(f"📡 实时状态抓取成功: [{status_text}] (Class: {status_class})")
-            
-            # 判定是否需要启动
-            is_offline = any(x in status_text.lower() for x in ['stopped', 'offline', 'stopped']) or \
-                         ('stopped' in status_class.lower())
-
-            if is_offline:
-                print(f"⚡ 检测到服务器处于离线状态，尝试寻找启动按钮...")
-                # 注意：启动按钮可能在 card 的其他地方，或者是单独的 .btn-start
-                try:
-                    start_btn = driver.find_element(By.CSS_SELECTOR, 'button.btn-start, .action-start')
-                    if start_btn.is_enabled():
-                        start_btn.click()
-                        server_started = True
-                        print("✅ 启动指令已发出")
-                except:
-                    print("ℹ️ 未发现可点击的启动按钮，跳过自启步骤。")
-        except Exception as e:
-            print(f"⚠️ 无法获取实时状态 (可能是数据未加载): {e}")
-            status_text = 'unknown'
-
-
-      # 登录成功后，不要立刻去点 Billing
+         # 登录成功后，不要立刻去点 Billing
         print("🎲 执行随机假动作...")
         if random.random() > 0.5:
             driver.get("https://greathost.es/services") # 先去服务列表晃一圈
-            time.sleep(random.randint(3, 7))
+            time.sleep(random.randint(4, 8))
             # 2. 回到 Dashboard (或者直接跳回 Dashboard)
             print("🏠 正在返回仪表盘...")
             driver.get("https://greathost.es/dashboard") 
             wait.until(EC.url_contains("/dashboard"))
-            time.sleep(2)     
-        
-        # === 3. 点击 Billing 图标进入账单页 (增加容错与等待) ===
+            time.sleep(random.uniform(1, 4))
+
+     # === 2. 状态检查与自动开机 (针对新版小圆点 UI 优化) ===
+        print("📊 正在检查服务器实时状态...")
+        try:
+            status_indicator = wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'server-status-indicator')))
+            status_text = status_indicator.get_attribute('title') or 'unknown'
+            status_class = status_indicator.get_attribute('class') or ''          
+            print(f"📡 实时状态抓取成功: [{status_text}] (Class: {status_class})")
+            
+           # 判定是否需要启动
+            if any(x in status_text.lower() for x in ['stopped', 'offline']):
+                print(f"⚡ 检测到离线，尝试触发启动...")
+                try:
+                    start_btn = driver.find_element(By.CSS_SELECTOR, 'button.btn-start, .action-start')
+                    # 模拟真人点击：先滚动再点
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", start_btn)
+                    time.sleep(1)
+                    start_btn.click()
+                    server_started = True
+                    print("✅ 启动指令已发出")
+                except: pass
+        except Exception as e:
+            print(f"⚠️ 状态检查跳过: {e}")
+      
+        # === 3. 点击 Billing 图标 (增加随机偏移点击防止 AC 检测) ===
         print("🔍 正在定位 Billing 图标...")
         try:
-            # 增加显式等待，确保按钮出现在 DOM 中且可见
             billing_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, 'btn-billing-compact')))
             
-            # 模拟真人：先滚动到按钮位置
+            # 模拟真人：先滚动到视图中心
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", billing_btn)
-            time.sleep(1)
+            time.sleep(random.uniform(1, 2))
             
-            # 尝试点击
-            billing_btn.click()
-            print("✅ 已点击 Billing，等待3秒...")
+            # ⭐ 核心防封动作：随机偏移点击
+            # 产生一个 -5 到 +5 像素的随机偏移量
+            offset_x = random.randint(-5, 5)
+            offset_y = random.randint(-5, 5)
+            
+            from selenium.webdriver.common.action_chains import ActionChains
+            actions = ActionChains(driver)
+            actions.move_to_element_with_offset(billing_btn, offset_x, offset_y).click().perform()
+            
+            print(f"✅ 已点击 Billing (坐标偏移: {offset_x}, {offset_y})，等待3秒...")
             time.sleep(3)
         except Exception as e:
-            print(f"❌ 定位 Billing 失败，尝试备用方案 (JS点击)...")
-            # 备用方案：直接用 JS 触发点击，绕过遮挡问题
+            print(f"❌ 定位 Billing 失败，执行备用 JS 点击: {e}")
             driver.execute_script("document.querySelector('.btn-billing-compact').click();")
             time.sleep(3)
 
@@ -217,7 +211,7 @@ def run_task():
             
             # 模拟真人：滚动到视图中心
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", view_details_btn)
-            time.sleep(1)
+            time.sleep(random.uniform(1, 3))
             
             view_details_btn.click()
             print("✅ 已进入详情页，等待3秒加载数据...")
