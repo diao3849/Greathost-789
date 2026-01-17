@@ -257,29 +257,29 @@ def run_task():
         except Exception as e:
             print(f"⚠️ 状态检查跳过: {e}")
       
-        # === 3. 点击 Billing 图标 (增加随机偏移点击防止 AC 检测) ===
+        
+      # === 3. 点击 Billing 图标（随机等待 + safe_click + JS 兜底）===
         print("🔍 正在定位 Billing 图标...")
         try:
-            billing_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, 'btn-billing-compact')))        
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", billing_btn)
-            time.sleep(random.uniform(1, 2))
+                billing_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, 'btn-billing-compact')))
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", billing_btn)
             
-            offset_x = random.randint(-5, 5) 
-            offset_y = random.randint(-5, 5)
-            
-            actions = ActionChains(driver)
-            actions.move_to_element_with_offset(billing_btn, offset_x, offset_y).click().perform()
-            print(f"✅ 已点击 Billing (坐标偏移: {offset_x}, {offset_y})，等待3秒...")
-            time.sleep(3)
-        except Exception as e:
-            print(f"⚠️ 模拟点击失败，尝试 safe_click 兜底: {e}")
-            try:
-                safe_click(driver, billing_btn) 
-                print("✅ safe_click 成功触发 Billing")
+                delay = random.uniform(1.0, 3.0)
+                print(f"⏳ 点击前随机等待 {delay:.2f} 秒...")
+                time.sleep(delay)
+
+                # ⭐ 第一层：safe_click（主力点击）
+                safe_click(driver, billing_btn)
+                print("✅ safe_click 成功触发 Billing，等待 3 秒...")
                 time.sleep(3)
-            except:
-                print("❌ 所有点击手段均失效，尝试最后 JS 强制跳转")
-                driver.execute_script("document.querySelector('.btn-billing-compact').click();")
+
+        except Exception as e:
+                print(f"⚠️ safe_click 失败，尝试 JS 强制点击兜底: {e}")
+                try:
+                        driver.execute_script("document.querySelector('.btn-billing-compact').click();")
+                        print("⚡ JS 强制点击成功")
+                except Exception as e2:
+                        print(f"🚨 JS 强制点击也失败: {e2}")
                 time.sleep(3)
 
         # === 4. 点击 View Details 进入详情页 (增加稳健性) ===
@@ -287,7 +287,6 @@ def run_task():
         try:
             # 等待 View Details 链接出现并可点击
             view_details_btn = wait.until(EC.element_to_be_clickable((By.LINK_TEXT, 'View Details')))
-            
             # 模拟真人：滚动到视图中心
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", view_details_btn)
             time.sleep(random.uniform(1, 3))
@@ -346,8 +345,7 @@ def run_task():
         try:
             # 1. 物理模拟点击 (防检测优先)
             actions = ActionChains(driver)
-            off_x, off_y = random.randint(-10, 10), random.randint(-5, 5)
-            actions.move_to_element_with_offset(renew_btn, off_x, off_y).pause(0.3).click().perform()
+            safe_click(driver, renew_btn)
             print(f"👉 物理模拟点击成功 (偏移: {off_x}, {off_y})")
            
         except Exception as e:
