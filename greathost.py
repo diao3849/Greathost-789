@@ -21,21 +21,19 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or ""
 # sock5代码，不需要留空值 62行左右要填上IP头
 PROXY_URL = os.getenv("PROXY_URL") or ""
 
-def send_telegram(msg_type_or_text, error_msg=None):    
+def send_telegram(msg_text):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return
+    # 核心修改：强制 TG 发送不走代理，防止代理挂了导致通知也挂了
+    session = requests.Session()
+    session.trust_env = False 
     
-    # 构造最终发送的消息
-    if msg_type_or_text == "fail" and error_msg:
-        message = f"🚨 <b>代理检查失败</b>\n<code>{error_msg}</code>"
-    else:
-        message = msg_type_or_text
-
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
-        requests.post(url, data=payload, timeout=10)
-    except Exception as e: 
-        print(f"Telegram 发送失败: {e}")
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": msg_text, "parse_mode": "HTML"}
+        # 设置较短的 timeout，防止卡死
+        session.post(url, data=payload, timeout=5)
+    except Exception as e:
+        print(f"Telegram 发送最终失败: {e}")
 
 STATUS_MAP = {
     "Running":   ["🟢", "运行中"],
@@ -50,36 +48,32 @@ def get_now_shanghai():
 
 
 def check_proxy_ip(driver):
-    """【熔断逻辑】检测当前代理 IP (防止代理失效导致直连)"""
+    """优化后的代理检测：先尝试轻量级连接检测"""
     if not PROXY_URL.strip():
-        print("🌍 [Check] 未设置代理，跳过代理 IP 检查。")
         return True
 
-    print("🌍 [Check] 正在检测代理 IP...")
+    print("🌍 [Check] 正在通过 Requests 预检代理...")
+    proxy_dict = {"http": PROXY_URL, "https": PROXY_URL}
     try:
-        driver.set_page_load_timeout(20)
-        driver.get("https://api.ipify.org?format=json")
-
-        WebDriverWait(driver, 10).until(
-            lambda d: "{" in d.find_element(By.TAG_NAME, "body").text
-        )
-        ip_body = driver.find_element(By.TAG_NAME, "body").text
-        ip_info = json.loads(ip_body)
-
-        current_ip = ip_info.get('ip')
-        print(f"✅ 当前出口 IP: {current_ip}")
-
-        if not current_ip.startswith("138.68"):
-            print(f"⚠️ 警告: IP ({current_ip}) 似乎不是预期的代理 IP！")
-
-        return True
-
+        # 预检：如果 requests 都连不上，直接判定代理失效
+        resp = requests.get("https://api.ipify.org?format=json", proxies=proxy_dict, timeout=10)
+        current_ip = resp.json().get('ip')
+        print(f"✅ 代理预检成功，当前 IP: {current_ip}")
     except Exception as e:
-        print(f"❌ 无法检测 IP (可能是代理连接超时): {e}")
-        # ⭐ 关键：代理不通 → 发送失败通知
-        send_telegram("fail", error_msg=f"代理检查失败: {e}")
-        # ⭐ 关键：抛异常终止脚本
-        raise Exception(f"Proxy Check Failed: {e}")
+        error_info = f"代理物理连接失败: {e}"
+        print(f"❌ {error_info}")
+        send_telegram(f"🚨 <b>代理检查失败 (预检)</b>\n<code>{error_info}</code>")
+        raise Exception(error_info)
+
+    # 预检通过后再让浏览器访问，减少浏览器超时的概率
+    try:
+        driver.set_page_load_timeout(30) # 增加超时时间
+        driver.get("https://api.ipify.org?format=json")
+        return True
+    except Exception as e:
+        error_info = f"浏览器访问代理超时: {e}"
+        send_telegram(f"🚨 <b>代理检查失败 (浏览器)</b>\n<code>{error_info}</code>")
+        raise Exception(error_info)        
 
 def get_browser():
     sw_options = {'proxy': {'http': PROXY_URL, 'https': PROXY_URL, 'no_proxy': 'localhost,127.0.0.1'}}
