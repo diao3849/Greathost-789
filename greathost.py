@@ -242,7 +242,11 @@ def run_task():
         err_msg = get_error_msg(driver)
         after, _ = get_hours(driver)
         print("After hours:", after)
-
+        
+        if after == before and before >= 109:
+            is_maxed = True
+            err_msg = err_msg or "接近或达到 5天上限，拒绝续期"
+            
         final_status, started_flag = confirm_and_start(driver, wait)
         if started_flag:
             icon, name = STATUS_MAP.get(final_status, ["❓", final_status])
