@@ -130,7 +130,7 @@ def safe_click(driver, element):
         print("⚠️ 普通点击失败，尝试 JS 兜底:", e)
         try:
             driver.execute_script("arguments[0].click();", element)
-        eexcept Exception as ex:
+        except Exception as ex:
             print("❌ JS 点击也失败:", ex)
             raise
     
@@ -277,7 +277,7 @@ def run_task():
         before_hours = int(digits) if digits else 0
 
         # === 8. 定位按钮状态 (JS 1:1) ===
-        renew_btn = driver.find_element(By.ID, 'renew-free-server-btn')
+        renew_btn = wait.until(EC.presence_of_element_located((By.ID, "renew-free-server-btn")))
         btn_content = renew_btn.get_attribute('innerHTML')
 
         # === 9. 逻辑判定 (JS 1:1) ===
