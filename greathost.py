@@ -189,7 +189,7 @@ def go_to_details(driver, wait):
     return driver.current_url.split('/')[-1] or "unknown"
 
 def get_hours(driver, selector="#accumulated-time"):
-    try: text = driver.find_element(By.CSS_SELECTOR, selector).text
+    try: text = driver.execute_script(f"return document.querySelector('{selector}').textContent;") or driver.find_element(By.CSS_SELECTOR, selector).text
     except: text = ""
     num = int(re.sub(r'[^0-9]','', text or '0')) if re.search(r'\d+', text or '') else 0
     return num, text
