@@ -202,7 +202,7 @@ def get_hours(driver, selector="#accumulated-time"):
     return 0, (text or "").strip()
 
 def get_error_msg(driver):
-    js = "return (document.querySelector('.toast-error, .alert-danger, .toast-message, .iziToast-message') || {}).innerText || ''"
+    js = "return document.body.innerText.includes('5 días') ? 'No puedes renovar más de 5 días' : ''"
     try: return driver.execute_script(js).strip()
     except: return ""
 
