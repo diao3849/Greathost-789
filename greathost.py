@@ -243,16 +243,12 @@ def run_task():
         after, _ = get_hours(driver)
         print("After hours:", after)
         
-        if after == before:
-                print("After == Before，可能后台写入延迟，等待 15s 再刷新一次")
+        if after == before:                
                 time.sleep(15)
-                try:
-                        driver.refresh()
-                except:
-                        print("Refresh failed")
-                        time.sleep(2)
+                try: driver.refresh()
+                except: pass
                 after, _ = get_hours(driver)
-                print("After hours (二次读取):", after)
+                print("After hours (retry):", after)
 
         print(f"Final after hours used for判定: {after}")
 
