@@ -17,6 +17,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 PROXY_URL = os.getenv("PROXY_URL", "")
 # 需要续期服务器名称。只有一个服务器可留空
 TARGET_NAME_CONFIG = os.getenv("TARGET_NAME", "loveMC") 
+SERVER_ID_ENV = os.getenv("TARGET_SERVER_ID", "")  # 可选：优先指定 server_id
 
 # 状态映射表
 STATUS_MAP = {
@@ -96,14 +97,38 @@ def run_task():
         driver.find_element(By.CSS_SELECTOR,"button[type='submit']").click()
         wait.until(EC.url_contains("/dashboard"))
 
-        # 2. 获取 ID [按照您的要求从 API 获取]
+        # 2. 获取 ID 并同时抓取 name（优先使用环境变量 TARGET_SERVER_ID）
         res = fetch_api(driver, "/api/servers")
         print("DEBUG /api/servers 返回：", json.dumps(res, indent=2, ensure_ascii=False))
         server_list = res.get("servers") if isinstance(res, dict) else res
         server_list = server_list or []
-        target_server = next((s for s in server_list if s.get('name') == TARGET_NAME_CONFIG), None)
-        if not target_server: raise Exception(f"未找到服务器: {TARGET_NAME_CONFIG}")
+
+        if SERVER_ID_ENV:
+            target_server = next((s for s in server_list if s.get('id') == SERVER_ID_ENV), None)
+            if not target_server:
+                raise Exception(f"未找到指定的 server_id: {SERVER_ID_ENV}")
+        else:
+            matches = [s for s in server_list if s.get('name') == TARGET_NAME_CONFIG]
+            if not matches:
+                raise Exception(f"未找到服务器: {TARGET_NAME_CONFIG}")
+            if len(matches) == 1:
+                target_server = matches[0]
+            else:
+                # 多个同名：打印候选并按 createdAt 选择最新（可改为其他规则或抛出让人工确认）
+                print("DEBUG 找到多个同名服务器，候选列表：", json.dumps(matches, indent=2, ensure_ascii=False))
+                def _parse_created(s):
+                    try:
+                        return s.get('createdAt') or ""
+                    except:
+                        return ""
+                matches_sorted = sorted(matches, key=_parse_created, reverse=True)
+                target_server = matches_sorted[0]
+                print("DEBUG 已自动选择最新创建的同名服务器：", json.dumps(target_server, indent=2, ensure_ascii=False))
+
         server_id = target_server.get('id')
+        serverName = target_server.get('name') or "未知名称"
+        print("DEBUG 选中服务器：name =", serverName, "id =", server_id, "createdAt =", target_server.get('createdAt'))
+
 
         # 3. 抓取 status (information 页面)
         driver.get(f"https://greathost.es/server-information-free.html?id={server_id}")
@@ -125,7 +150,6 @@ def run_task():
         c_data = contract_res.get('contract', {}) or {}
         r_info = c_data.get('renewalInfo', {}) or {}
 
-        serverName = c_data.get("serverName", serverName)
         before_h = calculate_hours(r_info.get('nextRenewalDate'))
         last_renew_str = r_info.get('lastRenewalDate')
 
