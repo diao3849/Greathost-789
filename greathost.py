@@ -119,17 +119,19 @@ def run_task():
         time.sleep(5)
         contract_res = fetch_api(driver, f"/api/servers/{server_id}/contract")
         print("DEBUG /contract 返回：", json.dumps(contract_res, indent=2, ensure_ascii=False))
-        print("DEBUG serverName =", c_data.get("serverName"))
-        print("DEBUG nextRenewalDate =", r_info.get("nextRenewalDate"))
-        print("DEBUG lastRenewalDate =", r_info.get("lastRenewalDate"))
-        print("DEBUG before_h =", before_h)
+
         c_data = contract_res.get('contract', {})
         r_info = c_data.get('renewalInfo', {})
-      
+
         serverName = c_data.get("serverName", "未知名称")
-        
         before_h = calculate_hours(r_info.get('nextRenewalDate'))
         last_renew_str = r_info.get('lastRenewalDate')
+
+        print("DEBUG serverName =", serverName)
+        print("DEBUG nextRenewalDate =", r_info.get("nextRenewalDate"))
+        print("DEBUG lastRenewalDate =", last_renew_str)
+        print("DEBUG before_h =", before_h)
+
 
         # --- 冷却判定逻辑 (保持 30 分钟冷却) ---
         if last_renew_str:
