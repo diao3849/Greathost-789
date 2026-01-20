@@ -149,8 +149,11 @@ def run_task():
         renew_res = fetch_api(driver, f"/api/renewal/contracts/{server_id}/renew-free", method="POST")
         
         is_success = renew_res.get('success', False)
-        # 【修正点】续期成功后，新日期确实是在 details 字段下
+        # 续期成功后，新日期确实是在 details 字段下
         after_date = renew_res.get('details', {}).get('nextRenewalDate')
+        res_message = renew_res.get('message', '无返回消息')
+         # 后台打印完整的响应信息，方便调试
+        print(f"📡 续期响应结果: Success={is_success} | Message='{res_message}'")
         
         # 确保 after_h 在失败时不会变成 0
         if is_success and after_date:
