@@ -184,12 +184,29 @@ def run():
             ])
     except Exception as e:
         print(f"🚨 运行异常: {e}")
-        send_notice("error", [
-            ("📛","服务器名称",TARGET_NAME),
-            ("❌","故障",f"<code>{str(e)[:100]}</code>")
-        ])
+        
+        # --- 增强报错通知可靠性：临时屏蔽环境变量中的代理 ---
+        # 记录当前的代理设置
+        old_http = os.environ.get('HTTP_PROXY')
+        old_https = os.environ.get('HTTPS_PROXY')
+        
+        # 强制清空当前进程的代理环境变量，让 requests 直连 Telegram
+        os.environ['HTTP_PROXY'] = ''
+        os.environ['HTTPS_PROXY'] = ''
+        
+        try:
+            send_notice("error", [
+                ("📛", "服务器名称", TARGET_NAME),
+                ("❌", "故障", f"<code>{str(e)[:100]}</code>"),
+                ("🌐", "代理状态", "已尝试直连发送") # 标记当前是在尝试直连
+            ])
+        finally:
+            # 恢复原始代理设置，避免影响后续其他可能的逻辑
+            if old_http is not None: os.environ['HTTP_PROXY'] = old_http
+            if old_https is not None: os.environ['HTTPS_PROXY'] = old_https
+
     finally:
-        gh.close()
+        gh.close() # 确保浏览器关闭
 
 if __name__ == "__main__":
     run()
