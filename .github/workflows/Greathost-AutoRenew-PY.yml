@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     
     permissions:
-      actions: write   # 允许删除工作流运行记录   
+      actions: write
+      contents: write   # 允许修改 README.md 并推送   
       
     steps:
       - name: Checkout
@@ -45,7 +46,17 @@ jobs:
           PROXY_URL: ${{ secrets.PROXY_URL }}
         run: python greathost.py
 
-      # 5. 上传调试截图 (如果脚本里有 save_screenshot 的话)
+      # 5. 更新 README 到仓库
+      - name: Push README changes
+        if: always()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "docs: update renewal status [skip ci]" || exit 0
+          git push
+
+      # 6. 上传调试截图 (如果脚本里有 save_screenshot 的话)
       - name: Upload Error Page
         if: failure() # 仅在脚本报错失败时执行
         uses: actions/upload-artifact@v4
