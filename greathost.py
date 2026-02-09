@@ -57,6 +57,12 @@ def send_notice(kind, fields):
             )
         except: pass
 
+    try:
+        md = msg.replace("<b>", "**").replace("</b>", "**").replace("<code>", "`").replace("</code>", "`")
+        with open("README.md", "w", encoding="utf-8") as f:
+            f.write(f"# GreatHost 自动续期状态\n\n{md}\n\n> 最近更新: {now_shanghai()}")
+    except: pass
+
 class GH:
     def __init__(self):
         opts = Options()
