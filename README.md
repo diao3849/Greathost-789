@@ -1,13 +1,17 @@
 # GreatHost 自动续期状态
 
-🎉 **GreatHost 续期成功**
+🚨 **GreatHost 脚本报错**
 
 📛 服务器名称: xyz666
-🆔 ID: `7284529c-dfd7-4a45-950d-32444cca7aab`
-⏰ 增加时间: 58 ➔ 70h
-🚀 服务器状态: 🟢 Running
-💡 提示: Servidor gratuito renovado correctamente
-🌐 落地 IP: `52.173.163.34`
-📅 时间: 2026/02/18 10:35:48
+❌ 故障: `Message: script timeout
+  (Session info: chrome=144.0.7559.132)
+Stacktrace:
+#0 0x55abb76f1a4a <unknown>
+#1 0x55abb710a390 <unknown>
+#2 0x55abb71a98d1 <unknown>
+#3 0x55abb71a87f0 <unknown>
+#4 0x55abb71`
+🌐 代理状态: 无代理
+📅 时间: 2026/02/18 21:15:20
 
-> 最近更新: 2026/02/18 10:35:49
+> 最近更新: 2026/02/18 21:15:21
